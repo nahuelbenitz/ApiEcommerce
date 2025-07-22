@@ -1,6 +1,7 @@
 using ApiEcommerce.Constants;
 using ApiEcommerce.Repository;
 using ApiEcommerce.Repository.IRepository;
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -41,9 +42,21 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuer = false,
         ValidateAudience = true
     };
-})
-    ;
+});
 
+var apiVersioningBuilder = builder.Services.AddApiVersioning(options =>
+{
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.DefaultApiVersion = new ApiVersion(1,0);
+    options.ReportApiVersions = true;
+    //options.ApiVersionReader = ApiVersionReader.Combine(new QueryStringApiVersionReader("api-version"));
+});
+
+apiVersioningBuilder.AddApiExplorer(options =>
+{
+    options.GroupNameFormat = "'v'VVV";
+    options.SubstituteApiVersionInUrl = true;
+});
 
 builder.Services.AddCors(option =>
 {
@@ -89,6 +102,40 @@ builder.Services.AddSwaggerGen(options =>
         new List<string>()
       }
     });
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Version = "v1",
+        Title = "Api ecommerce",
+        Description = "Api para gestionar productos",
+        TermsOfService = new Uri("https://devtalles.com/terms"),
+        Contact = new OpenApiContact()
+        {
+            Name = "NahuBenitez",
+            Url= new Uri("https://devtalles.com")
+        },
+        License = new OpenApiLicense()
+        {
+            Name = "Licencia de uso",
+            Url= new Uri("https://devtalles.com/licence")
+        }
+    });
+    options.SwaggerDoc("v2", new OpenApiInfo
+    {
+        Version = "v2",
+        Title = "Api ecommerce V2",
+        Description = "Api para gestionar productos",
+        TermsOfService = new Uri("https://devtalles.com/terms"),
+        Contact = new OpenApiContact()
+        {
+            Name = "NahuBenitez",
+            Url = new Uri("https://devtalles.com")
+        },
+        License = new OpenApiLicense()
+        {
+            Name = "Licencia de uso",
+            Url = new Uri("https://devtalles.com/licence")
+        }
+    });
 });
 
 builder.Services.AddResponseCaching(options =>
@@ -103,7 +150,11 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
+        options.SwaggerEndpoint("/swagger/v2/swagger.json", "v2");
+    });
 }
 
 app.UseHttpsRedirection();
