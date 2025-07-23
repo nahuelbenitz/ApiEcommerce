@@ -2,6 +2,7 @@
 using ApiEcommerce.Models.Dtos;
 using ApiEcommerce.Repository.IRepository;
 using AutoMapper;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -14,22 +15,27 @@ namespace ApiEcommerce.Repository
     {
         private readonly ApplicationDbContext _context;
         private readonly string? _secretKey;
+        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly IMapper _mapper;
 
-
-        public UserRepository(ApplicationDbContext context, IConfiguration configuration)
+        public UserRepository(ApplicationDbContext context, IConfiguration configuration, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, IMapper mapper)
         {
             _context = context;
             _secretKey = configuration.GetValue<string>("ApiSettings:SecretKey");
+            _userManager = userManager;
+            _roleManager = roleManager;
+            _mapper = mapper;
         }
 
-        public User? GetUser(int id)
+        public ApplicationUser? GetUser(string id)
         {
-            return _context.Users.FirstOrDefault(x => x.Id == id);
+            return _context.ApplicationUsers.FirstOrDefault(x => x.Id == id);
         }
 
-        public ICollection<User> GetUsers()
+        public ICollection<ApplicationUser> GetUsers()
         {
-            return _context.Users.OrderBy(x => x.Username).ToList();
+            return _context.ApplicationUsers.OrderBy(x => x.UserName).ToList();
         }
 
         public bool IsUniqueUser(string username)
@@ -48,8 +54,8 @@ namespace ApiEcommerce.Repository
                     Message = "El Username es requerido"
                 };
             }
-            var user = await _context.Users.FirstOrDefaultAsync<User>(u => u.Username.ToLower().Trim() == userLoginDTO.Username.ToLower().Trim());
-            if (user == null)
+            var user = await _context.ApplicationUsers.FirstOrDefaultAsync<ApplicationUser>(u => u.UserName != null && u.UserName.ToLower().Trim() == userLoginDTO.Username.ToLower().Trim());
+            if (user is null)
             {
                 return new UserLoginResponseDTO()
                 {
@@ -59,7 +65,19 @@ namespace ApiEcommerce.Repository
                 };
             }
 
-            if (!BCrypt.Net.BCrypt.Verify(userLoginDTO.Password, user.Password))
+            if (userLoginDTO.Password is null)
+            {
+                return new UserLoginResponseDTO()
+                {
+                    Token = "",
+                    User = null,
+                    Message = "Password requerido"
+                };
+            }
+
+            bool isValid = await _userManager.CheckPasswordAsync(user, userLoginDTO.Password);
+
+            if (!isValid)
             {
                 return new UserLoginResponseDTO()
                 {
@@ -76,6 +94,8 @@ namespace ApiEcommerce.Repository
                 throw new InvalidOperationException("SecrectKey no esta configurada");
             }
 
+            var roles = await _userManager.GetRolesAsync(user);
+
             var key = Encoding.UTF8.GetBytes(_secretKey);
 
             var tokenDescriptor = new SecurityTokenDescriptor()
@@ -83,8 +103,8 @@ namespace ApiEcommerce.Repository
                 Subject = new ClaimsIdentity(new[]
                 {
                     new Claim("id", user.Id.ToString()),
-                    new Claim("user", user.Username),
-                    new Claim(ClaimTypes.Role, user.Role ?? string.Empty)
+                    new Claim("user", user.UserName ?? string.Empty),
+                    new Claim(ClaimTypes.Role, roles.FirstOrDefault() ?? string.Empty)
                 }),
                 Expires = DateTime.UtcNow.AddHours(2),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
@@ -95,34 +115,51 @@ namespace ApiEcommerce.Repository
             return new UserLoginResponseDTO()
             {
                 Token = handlerToken.WriteToken(token),
-                User = new UserRegisterDTO()
-                {
-                    Username = user.Username,
-                    Name = user.Name,
-                    Role = user.Role,
-                    Password = user.Password ?? ""
-                },
+                User = _mapper.Map<UserDataDTO>(user),
                 Message = "Usuario logueado correctamente"
             };
 
         }
 
-        public async Task<User> Register(CreateUserDTO createUserDTO)
+        public async Task<UserDataDTO> Register(CreateUserDTO createUserDTO)
         {
-            var encryptedPassword = BCrypt.Net.BCrypt.HashPassword(createUserDTO.Password);
-
-            var user = new User()
+            if (string.IsNullOrEmpty(createUserDTO.Username))
             {
-                Username = createUserDTO.Username ?? "No Username",
-                Name = createUserDTO.Name,
-                Role = createUserDTO.Role,
-                Password = encryptedPassword
+                throw new ArgumentNullException("El username es requerido");
+            }
+
+            if (createUserDTO.Password is null)
+            {
+                throw new ArgumentNullException("El password es requerido");
+            }
+
+            var user = new ApplicationUser()
+            {
+                UserName = createUserDTO.Username,
+                Email = createUserDTO.Username,
+                NormalizedEmail = createUserDTO.Username.ToUpper(),
+                Name = createUserDTO.Name
             };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            var result = await _userManager.CreateAsync(user, createUserDTO.Password);
 
-            return user;
+            if (result.Succeeded)
+            {
+                var userRole = createUserDTO.Role ?? "User";
+
+                //Pregunto si existe el rol, en caso contrario lo creo
+                var roleExist = await _roleManager.RoleExistsAsync(userRole);
+                if (!roleExist)
+                {
+                    var identityRole = new IdentityRole(userRole);
+                    await _roleManager.CreateAsync(identityRole);
+                }
+                await _userManager.AddToRoleAsync(user, userRole);
+                var createdUser = _context.ApplicationUsers.FirstOrDefault(u => u.UserName == createUserDTO.Username);
+                return _mapper.Map<UserDataDTO>(createdUser);
+            }
+
+            throw new ApplicationException("No se pudo crear el registro");
         }
     }
 }
