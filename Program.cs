@@ -1,4 +1,5 @@
 using ApiEcommerce.Constants;
+using ApiEcommerce.Data;
 using ApiEcommerce.Models;
 using ApiEcommerce.Repository;
 using ApiEcommerce.Repository.IRepository;
@@ -14,7 +15,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 var dbConnectionString = builder.Configuration.GetConnectionString("ConexionSql");
-builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(dbConnectionString));
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
+    options.UseSqlServer(dbConnectionString).UseSeeding((context, _) =>
+    {
+        var appContext = (ApplicationDbContext)context;
+        DataSeeder.SeedData(appContext);
+    });
+}
+);
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -52,7 +61,7 @@ builder.Services.AddAuthentication(options =>
 var apiVersioningBuilder = builder.Services.AddApiVersioning(options =>
 {
     options.AssumeDefaultVersionWhenUnspecified = true;
-    options.DefaultApiVersion = new ApiVersion(1,0);
+    options.DefaultApiVersion = new ApiVersion(1, 0);
     options.ReportApiVersions = true;
     //options.ApiVersionReader = ApiVersionReader.Combine(new QueryStringApiVersionReader("api-version"));
 });
@@ -116,12 +125,12 @@ builder.Services.AddSwaggerGen(options =>
         Contact = new OpenApiContact()
         {
             Name = "NahuBenitez",
-            Url= new Uri("https://devtalles.com")
+            Url = new Uri("https://devtalles.com")
         },
         License = new OpenApiLicense()
         {
             Name = "Licencia de uso",
-            Url= new Uri("https://devtalles.com/licence")
+            Url = new Uri("https://devtalles.com/licence")
         }
     });
     options.SwaggerDoc("v2", new OpenApiInfo
