@@ -86,6 +86,16 @@ namespace ApiEcommerce.Repository
             return _context.Products.Include(p => p.Category).OrderBy(x => x.Description).ToList();
         }
 
+        public ICollection<Product> GetProductsInPages(int pageNumber, int pageSize)
+        {
+            return _context.Products.OrderBy(x => x.Id).Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+        }
+
+        public int GetTotalProducts()
+        {
+            return _context.Products.Count();
+        }
+
         public bool ProductExists(int id)
         {
             if (id <= 0)
