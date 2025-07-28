@@ -4,6 +4,7 @@ using ApiEcommerce.Models;
 using ApiEcommerce.Repository;
 using ApiEcommerce.Repository.IRepository;
 using Asp.Versioning;
+using Mapster;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +28,10 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddAutoMapper(typeof(Program).Assembly);
+
+// Mapster config registration
+TypeAdapterConfig.GlobalSettings.Scan(typeof(Program).Assembly);
+builder.Services.AddMapster();
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -91,8 +95,8 @@ builder.Services.AddSwaggerGen(options =>
 {
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "Nuestra API utiliza la Autenticación JWT usando el esquema Bearer. \n\r\n\r" +
-                    "Ingresa la palabra a continuación el token generado en login.\n\r\n\r" +
+        Description = "Nuestra API utiliza la Autenticaci?n JWT usando el esquema Bearer. \n\r\n\r" +
+                    "Ingresa la palabra a continuaci?n el token generado en login.\n\r\n\r" +
                     "Ejemplo: \"12345abcdef\"",
         Name = "Authorization",
         In = ParameterLocation.Header,

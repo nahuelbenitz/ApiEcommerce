@@ -1,6 +1,5 @@
 ﻿using ApiEcommerce.Models;
 using ApiEcommerce.Repository.IRepository;
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApiEcommerce.Repository
@@ -8,11 +7,9 @@ namespace ApiEcommerce.Repository
     public class ProductRepository : IProductRepository
     {
         private readonly ApplicationDbContext _context;
-        private readonly IMapper _mapper;
-        public ProductRepository(ApplicationDbContext context, IMapper mapper)
+        public ProductRepository(ApplicationDbContext context)
         {
             _context = context;
-            _mapper = mapper;
         }
 
         public bool BuyProduct(string name, int quantity)

@@ -1,31 +1,29 @@
 ﻿using ApiEcommerce.Models;
 using ApiEcommerce.Models.Dtos;
 using ApiEcommerce.Repository.IRepository;
-using AutoMapper;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
+using Mapster;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Microsoft.Extensions.Configuration;
 
 namespace ApiEcommerce.Repository
 {
     public class UserRepository : IUserRepository
     {
         private readonly ApplicationDbContext _context;
-        private readonly string? _secretKey;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
-        private readonly IMapper _mapper;
+        private readonly string _secretKey;
 
-        public UserRepository(ApplicationDbContext context, IConfiguration configuration, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, IMapper mapper)
+        public UserRepository(ApplicationDbContext context, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration)
         {
             _context = context;
-            _secretKey = configuration.GetValue<string>("ApiSettings:SecretKey");
             _userManager = userManager;
             _roleManager = roleManager;
-            _mapper = mapper;
+            _secretKey = configuration.GetValue<string>("ApiSettings:SecretKey") ?? throw new InvalidOperationException("SecrectKey no esta configurada");
         }
 
         public ApplicationUser? GetUser(string id)
@@ -54,7 +52,7 @@ namespace ApiEcommerce.Repository
                     Message = "El Username es requerido"
                 };
             }
-            var user = await _context.ApplicationUsers.FirstOrDefaultAsync<ApplicationUser>(u => u.UserName != null && u.UserName.ToLower().Trim() == userLoginDTO.Username.ToLower().Trim());
+            var user = _context.ApplicationUsers.FirstOrDefault(u => u.UserName != null && u.UserName.ToLower().Trim() == userLoginDTO.Username.ToLower().Trim());
             if (user is null)
             {
                 return new UserLoginResponseDTO()
@@ -89,10 +87,6 @@ namespace ApiEcommerce.Repository
 
             //JWT
             var handlerToken = new JwtSecurityTokenHandler();
-            if (string.IsNullOrWhiteSpace(_secretKey))
-            {
-                throw new InvalidOperationException("SecrectKey no esta configurada");
-            }
 
             var roles = await _userManager.GetRolesAsync(user);
 
@@ -115,29 +109,16 @@ namespace ApiEcommerce.Repository
             return new UserLoginResponseDTO()
             {
                 Token = handlerToken.WriteToken(token),
-                User = _mapper.Map<UserDataDTO>(user),
+                User = user.Adapt<UserDataDTO>(),
                 Message = "Usuario logueado correctamente"
             };
-
         }
 
         public async Task<UserDataDTO> Register(CreateUserDTO createUserDTO)
         {
-            if (string.IsNullOrEmpty(createUserDTO.Username))
-            {
-                throw new ArgumentNullException("El username es requerido");
-            }
-
-            if (createUserDTO.Password is null)
-            {
-                throw new ArgumentNullException("El password es requerido");
-            }
-
-            var user = new ApplicationUser()
+            var user = new ApplicationUser
             {
                 UserName = createUserDTO.Username,
-                Email = createUserDTO.Username,
-                NormalizedEmail = createUserDTO.Username.ToUpper(),
                 Name = createUserDTO.Name
             };
 
@@ -156,7 +137,7 @@ namespace ApiEcommerce.Repository
                 }
                 await _userManager.AddToRoleAsync(user, userRole);
                 var createdUser = _context.ApplicationUsers.FirstOrDefault(u => u.UserName == createUserDTO.Username);
-                return _mapper.Map<UserDataDTO>(createdUser);
+                return createdUser.Adapt<UserDataDTO>();
             }
 
             throw new ApplicationException("No se pudo crear el registro");
